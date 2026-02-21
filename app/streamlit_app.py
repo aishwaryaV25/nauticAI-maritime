@@ -499,12 +499,16 @@ def annotate_image(pil_img,dets):
 
 def build_heatmap(img,dets):
     W,H=img.size;heat=np.zeros((H,W),dtype=np.float32)
+    # Place all weighted detection centres on the heat array first
     for d in dets:
         cx=min(W-1,max(0,(d["x1"]+d["x2"])//2));cy=min(H-1,max(0,(d["y1"]+d["y2"])//2))
-        sig=max(30,math.sqrt(d.get("area",3000))*.35)
-        tmp=np.zeros_like(heat);tmp[cy,cx]=float(sev_weight(d["severity"]))
-        heat+=gaussian_filter(tmp,sigma=sig)
-    if heat.max()>0: heat=(heat/heat.max()*255).astype(np.uint8)
+        heat[cy,cx]+=float(sev_weight(d["severity"]))
+    # Apply a single gaussian filter (fast even for thousands of detections)
+    if heat.max()>0:
+        avg_area=np.mean([d.get("area",3000) for d in dets]) if dets else 3000
+        sig=max(30,math.sqrt(avg_area)*.35)
+        heat=gaussian_filter(heat,sigma=sig)
+        heat=(heat/heat.max()*255).astype(np.uint8)
     cmap=matplotlib.colormaps.get_cmap("plasma")
     hmap=(cmap(heat/255.0)[:,:,:3]*255).astype(np.uint8)
     dark=ImageEnhance.Brightness(img).enhance(.4)
