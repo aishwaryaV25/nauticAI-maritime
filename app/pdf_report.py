@@ -124,11 +124,11 @@ def _pil_to_rl(pil_img, max_w, max_h):
 
 
 def _make_qr(data):
-    qr = qrcode.QRCode(version=2, error_correction=qrcode.constants.ERROR_CORRECT_H,
-                        box_size=6, border=3)
+    qr = qrcode.QRCode(version=None, error_correction=qrcode.constants.ERROR_CORRECT_M,
+                        box_size=10, border=4)
     qr.add_data(data)
     qr.make(fit=True)
-    return qr.make_image(fill_color="#0B1A2E", back_color="#FFFFFF").convert("RGB")
+    return qr.make_image(fill_color="#000000", back_color="#FFFFFF").convert("RGB")
 
 
 def _section_line():
@@ -596,20 +596,33 @@ def build_pdf(
     story.append(Spacer(1, 14))
 
     # ─── QR CODE / DIGITAL REPORT ────────────────────────────────────
-    story += _section("Digital Report — QR Code", ST)
+    story += _section("Digital Report — QR Verification", ST)
 
-    qr_url = f"https://nauticai.sg/report/{mission_id}"
+    sev_summary = {k: v for k, v in sev_counts.items() if v > 0}
+    qr_hash = hashlib.sha256(f"{mission_id}{vessel}{ts}{risk_score}".encode()).hexdigest()[:12]
+    qr_url = (
+        f"https://aishwaryav25-nauticai-maritime.streamlit.app/"
+        f"?tab=report&mission={mission_id}"
+        f"&vessel={vessel or 'N/A'}"
+        f"&grade={grade}&risk={risk_score}"
+        f"&hash={qr_hash}"
+    )
     qr_pil = _make_qr(qr_url)
 
     qr_info = [
-        Paragraph("Scan to access digital report", ST["h3"]),
+        Paragraph("Scan to download PDF report", ST["h3"]),
         Spacer(1, 2),
-        Paragraph(qr_url, ST["mono_sm"]),
-        Spacer(1, 4),
+        Paragraph(f"<font color='#0EA5E9'><u>{qr_url}</u></font>",
+                  ParagraphStyle("qr_link", fontName="Helvetica", fontSize=7,
+                                leading=10, textColor=BRAND_CYAN)),
+        Spacer(1, 6),
         Paragraph(f"<b>Mission:</b>&nbsp;&nbsp;{mission_id}&nbsp;&nbsp;|&nbsp;&nbsp;"
                   f"<b>Vessel:</b>&nbsp;&nbsp;{vessel or 'N/A'}", ST["body_sm"]),
-        Paragraph("<b>Encryption:</b>&nbsp;&nbsp;SHA-256 tamper-evident hash", ST["body_sm"]),
-        Paragraph("<b>Validity:</b>&nbsp;&nbsp;30 days from generation date", ST["body_sm"]),
+        Paragraph(f"<b>Risk Score:</b>&nbsp;&nbsp;{risk_score}/100&nbsp;&nbsp;|&nbsp;&nbsp;"
+                  f"<b>Grade:</b>&nbsp;&nbsp;{grade}", ST["body_sm"]),
+        Paragraph(f"<b>Detections:</b>&nbsp;&nbsp;{len(dets)}&nbsp;&nbsp;|&nbsp;&nbsp;"
+                  f"<b>Mode:</b>&nbsp;&nbsp;{mode.upper()}", ST["body_sm"]),
+        Paragraph(f"<b>SHA-256:</b>&nbsp;&nbsp;{qr_hash}", ST["body_sm"]),
         Paragraph(f"<b>Generated:</b>&nbsp;&nbsp;{ts}", ST["body_sm"]),
     ]
 

@@ -336,7 +336,10 @@ div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stHorizontalBloc
 def _init():
     d=dict(detections=[],annotated_img=None,original_img=None,enhanced_img=None,
            risk_score=0,grade="N/A",mission_id=f"M-{uuid.uuid4().hex[:6].upper()}",
-           vessel_name="",scan_time="",last_pdf=None,last_pdf_fname="",mission_history=[])
+           vessel_name="",scan_time="",last_pdf=None,last_pdf_fname="",mission_history=[],
+           hull_pdf=None,hull_pdf_fname="",
+           pipe_pdf=None,pipe_pdf_fname="",
+           cable_pdf=None,cable_pdf_fname="")
     for k,v in d.items():
         if k not in st.session_state: st.session_state[k]=v
 _init()
@@ -351,9 +354,9 @@ def grade_color_rl(g): return {"A":colors.HexColor("#34d399"),"B":colors.HexColo
 def sev_weight(s): return {"Critical":25,"High":12,"Medium":6,"Low":2}.get(s,0)
 def compute_risk(dets): return max(0,min(100,100-sum(sev_weight(d["severity"]) for d in dets)))
 def make_qr(data):
-    qr=qrcode.QRCode(version=2,error_correction=qrcode.constants.ERROR_CORRECT_H,box_size=6,border=3)
+    qr=qrcode.QRCode(version=None,error_correction=qrcode.constants.ERROR_CORRECT_M,box_size=10,border=4)
     qr.add_data(data);qr.make(fit=True)
-    return qr.make_image(fill_color="#4cc9ff",back_color="#071427").convert("RGB")
+    return qr.make_image(fill_color="#000000",back_color="#FFFFFF").convert("RGB")
 def sev_badge_color(s): return {"Critical":colors.HexColor("#f87171"),"High":colors.HexColor("#fbbf24"),"Medium":colors.HexColor("#38bdf8"),"Low":colors.HexColor("#34d399")}.get(s,colors.grey)
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -737,12 +740,57 @@ with tab_hull:
             hd=run_detection(enh,conf_thr,iou_thr,"hull")
             ha=annotate_image(enh,hd)
         rh=compute_risk(hd);gh=score_to_grade(rh)
+        hull_hmap=build_heatmap(enh,hd)
+
+        # Log hull inspection to mission history (dedup by file identity)
+        _hull_key=f"hull_{h_up.name}_{h_up.size}"
+        if not any(m.get("_src")==_hull_key for m in st.session_state.mission_history):
+            hull_scan_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            hull_mission_id=f"HULL-{uuid.uuid4().hex[:6].upper()}"
+            st.session_state.mission_history.append(dict(
+                id=hull_mission_id,
+                vessel=vessel_name or "Unknown",
+                date=hull_scan_time,
+                score=rh,grade=gh,
+                detections=len(hd),
+                mode="hull",
+                _src=_hull_key,
+            ))
 
         ui_card_open()
         ch1,ch2,ch3=st.columns(3)
         ch1.metric("Risk Score",f"{rh}/100");ch2.metric("Grade",gh);ch3.metric("Anomalies",len(hd))
         import pandas as pd
         st.dataframe(pd.DataFrame([{"#":f"{d['id']:02d}","Class":d["cls"],"Severity":d["severity"],"Confidence":f"{d['conf']*100:.1f}%"} for d in hd]),hide_index=True,use_container_width=True)
+        ui_card_close()
+
+        # ── Hull Inspection PDF Report ──
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        ui_card_open()
+        st.markdown("""<div style='font-size:11px;font-weight:800;color:var(--muted2);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px'>Hull Inspection Report</div>""",unsafe_allow_html=True)
+        hull_mid=f"HULL-{uuid.uuid4().hex[:6].upper()}"
+        if st.button("📄  Generate Hull Inspection PDF",type="primary",use_container_width=True,key="hull_pdf_btn"):
+            with st.spinner("Building Hull Inspection PDF report…"):
+                try:
+                    hull_pdf_bytes=build_pdf(
+                        hull_mid,
+                        vessel_name or "Unknown",
+                        inspector, "hull", hd, h_img, ha, hull_hmap,
+                        rh, gh, conf_thr, iou_thr
+                    )
+                    st.session_state.hull_pdf=hull_pdf_bytes
+                    st.session_state.hull_pdf_fname=(
+                        f"NautiCAI_Hull_{hull_mid}"
+                        f"_{datetime.datetime.now().strftime('%Y%m%d')}.pdf")
+                except Exception as e:
+                    st.session_state.hull_pdf=None
+                    st.session_state.hull_pdf_fname=""
+                    st.error(f"PDF generation failed: {e}")
+        if st.session_state.hull_pdf:
+            st.download_button("⬇️  Download Hull Inspection PDF",data=st.session_state.hull_pdf,
+                file_name=st.session_state.hull_pdf_fname or "NautiCAI_Hull_Report.pdf",
+                mime="application/pdf",use_container_width=True,key="hull_pdf_dl")
+            st.success(f"`{st.session_state.hull_pdf_fname}` is ready — click above to download.")
         ui_card_close()
 
 # ─── VIDEO ───────────────────────────────────────────────────────────────
@@ -869,10 +917,56 @@ with tab_pipe:
                 pd_=run_detection(pe,conf_thr,iou_thr,"pipeline");pa=annotate_image(pe,pd_)
             st.image(pa,caption="Annotated Output",use_container_width=True)
         rp=compute_risk(pd_);gp=score_to_grade(rp)
+        pipe_hmap=build_heatmap(pe,pd_)
+
+        # Log pipeline inspection to mission history (dedup by file identity)
+        _pipe_key=f"pipe_{p_up.name}_{p_up.size}"
+        if not any(m.get("_src")==_pipe_key for m in st.session_state.mission_history):
+            pipe_scan_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            pipe_mission_id=f"PIPE-{uuid.uuid4().hex[:6].upper()}"
+            st.session_state.mission_history.append(dict(
+                id=pipe_mission_id,
+                vessel=vessel_name or "Unknown",
+                date=pipe_scan_time,
+                score=rp,grade=gp,
+                detections=len(pd_),
+                mode="pipeline",
+                _src=_pipe_key,
+            ))
+
         c1,c2,c3=st.columns(3);c1.metric("Risk Score",f"{rp}/100");c2.metric("Grade",gp);c3.metric("Anomalies",len(pd_))
         st.markdown("""<div style='font-size:11px;font-weight:800;color:var(--muted2);letter-spacing:.8px;text-transform:uppercase;margin:14px 0 8px'>Detection Results</div>""",unsafe_allow_html=True)
         import pandas as pd
         st.dataframe(pd.DataFrame([{"#":f"{d['id']:02d}","Class":d["cls"],"Severity":d["severity"],"Confidence":f"{d['conf']*100:.1f}%","Bounding Box":f"({d['x1']},{d['y1']})→({d['x2']},{d['y2']})"} for d in pd_]),hide_index=True,use_container_width=True)
+        ui_card_close()
+
+        # ── Pipeline & Subsea PDF Report ──
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        ui_card_open()
+        st.markdown("""<div style='font-size:11px;font-weight:800;color:var(--muted2);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px'>Pipeline & Subsea Report</div>""",unsafe_allow_html=True)
+        pipe_mid=f"PIPE-{uuid.uuid4().hex[:6].upper()}"
+        if st.button("📄  Generate Pipeline & Subsea PDF",type="primary",use_container_width=True,key="pipe_pdf_btn"):
+            with st.spinner("Building Pipeline & Subsea PDF report…"):
+                try:
+                    pipe_pdf_bytes=build_pdf(
+                        pipe_mid,
+                        vessel_name or "Unknown",
+                        inspector, "pipeline", pd_, p_img, pa, pipe_hmap,
+                        rp, gp, conf_thr, iou_thr
+                    )
+                    st.session_state.pipe_pdf=pipe_pdf_bytes
+                    st.session_state.pipe_pdf_fname=(
+                        f"NautiCAI_Pipeline_{pipe_mid}"
+                        f"_{datetime.datetime.now().strftime('%Y%m%d')}.pdf")
+                except Exception as e:
+                    st.session_state.pipe_pdf=None
+                    st.session_state.pipe_pdf_fname=""
+                    st.error(f"PDF generation failed: {e}")
+        if st.session_state.pipe_pdf:
+            st.download_button("⬇️  Download Pipeline & Subsea PDF",data=st.session_state.pipe_pdf,
+                file_name=st.session_state.pipe_pdf_fname or "NautiCAI_Pipeline_Report.pdf",
+                mime="application/pdf",use_container_width=True,key="pipe_pdf_dl")
+            st.success(f"`{st.session_state.pipe_pdf_fname}` is ready — click above to download.")
         ui_card_close()
 
 # ─── CABLE ───────────────────────────────────────────────────────────────
@@ -899,9 +993,55 @@ with tab_cable:
                 cd=run_detection(ce,conf_thr,iou_thr,"cable");ca=annotate_image(ce,cd)
             st.image(ca,caption=f"{len(cd)} anomalies detected",use_container_width=True)
         rc=compute_risk(cd);gc=score_to_grade(rc)
+        cable_hmap=build_heatmap(ce,cd)
+
+        # Log cable inspection to mission history (dedup by file identity)
+        _cable_key=f"cable_{c_up.name}_{c_up.size}"
+        if not any(m.get("_src")==_cable_key for m in st.session_state.mission_history):
+            cable_scan_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+            cable_mission_id=f"CABLE-{uuid.uuid4().hex[:6].upper()}"
+            st.session_state.mission_history.append(dict(
+                id=cable_mission_id,
+                vessel=vessel_name or "Unknown",
+                date=cable_scan_time,
+                score=rc,grade=gc,
+                detections=len(cd),
+                mode="cable",
+                _src=_cable_key,
+            ))
+
         cx1,cx2,cx3=st.columns(3);cx1.metric("Risk Score",f"{rc}/100");cx2.metric("Grade",gc);cx3.metric("Anomalies",len(cd))
         import pandas as pd
         st.dataframe(pd.DataFrame([{"ID":d["id"],"Class":d["cls"],"Severity":d["severity"],"Confidence":f"{d['conf']*100:.1f}%"} for d in cd]),hide_index=True,use_container_width=True)
+        ui_card_close()
+
+        # ── Cable Anomaly PDF Report ──
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        ui_card_open()
+        st.markdown("""<div style='font-size:11px;font-weight:800;color:var(--muted2);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px'>Cable Anomaly Report</div>""",unsafe_allow_html=True)
+        cable_mid=f"CABLE-{uuid.uuid4().hex[:6].upper()}"
+        if st.button("📄  Generate Cable Anomaly PDF",type="primary",use_container_width=True,key="cable_pdf_btn"):
+            with st.spinner("Building Cable Anomaly PDF report…"):
+                try:
+                    cable_pdf_bytes=build_pdf(
+                        cable_mid,
+                        vessel_name or "Unknown",
+                        inspector, "cable", cd, c_img, ca, cable_hmap,
+                        rc, gc, conf_thr, iou_thr
+                    )
+                    st.session_state.cable_pdf=cable_pdf_bytes
+                    st.session_state.cable_pdf_fname=(
+                        f"NautiCAI_Cable_{cable_mid}"
+                        f"_{datetime.datetime.now().strftime('%Y%m%d')}.pdf")
+                except Exception as e:
+                    st.session_state.cable_pdf=None
+                    st.session_state.cable_pdf_fname=""
+                    st.error(f"PDF generation failed: {e}")
+        if st.session_state.cable_pdf:
+            st.download_button("⬇️  Download Cable Anomaly PDF",data=st.session_state.cable_pdf,
+                file_name=st.session_state.cable_pdf_fname or "NautiCAI_Cable_Report.pdf",
+                mime="application/pdf",use_container_width=True,key="cable_pdf_dl")
+            st.success(f"`{st.session_state.cable_pdf_fname}` is ready — click above to download.")
         ui_card_close()
 
     with st.expander("Jetson Orin Edge Deployment — Real-Time FPS"):
@@ -926,7 +1066,8 @@ with tab_dash:
     history=st.session_state.mission_history
     if history:
         import pandas as pd
-        df_h=pd.DataFrame(history);df_h.columns=[c.upper() for c in df_h.columns]
+        df_h=pd.DataFrame([{k:v for k,v in m.items() if k!="_src"} for m in history])
+        df_h.columns=[c.upper() for c in df_h.columns]
         ui_card_open()
         c1,c2,c3,c4=st.columns(4)
         c1.metric("Total Missions",len(history))
@@ -1025,19 +1166,32 @@ with tab_report:
 
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
         ui_card_open()
-        st.markdown("##### QR Code — Digital Report Link")
-        qr_url=f"https://nauticai.sg/report/{st.session_state.mission_id}"
+        st.markdown("##### QR Code — Report Verification")
+        _sev_counts={"Critical":0,"High":0,"Medium":0,"Low":0}
+        for _d in dets:
+            _sev_counts[_d.get("severity","Medium")]+=1
+        _ts_now=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        import hashlib as _hl
+        _qr_hash=_hl.sha256(f"{st.session_state.mission_id}{st.session_state.vessel_name}{_ts_now}{risk}".encode()).hexdigest()[:12]
+        qr_url=(
+            f"https://aishwaryav25-nauticai-maritime.streamlit.app/"
+            f"?tab=report&mission={st.session_state.mission_id}"
+            f"&vessel={st.session_state.vessel_name or 'N/A'}"
+            f"&grade={grade}&risk={risk}"
+            f"&hash={_qr_hash}"
+        )
         qr_pil=make_qr(qr_url)
         cq1,cq2=st.columns([1,2])
         with cq1:
-            st.image(qr_pil,caption="Scan to access digital report",width=180)
+            st.image(qr_pil,caption="Scan to open PDF report",width=180)
         with cq2:
             st.code(qr_url)
             st.markdown(f"""
 - **Mission ID** `{st.session_state.mission_id}`
-- **Encrypted** SHA-256 tamper-evident hash
-- **Valid** 30 days from generation
-- **Format** Mobile-optimised digital report
+- **Risk Score** `{risk}/100` · **Grade** `{grade}`
+- **Detections** `{len(dets)}`
+- **SHA-256** `{_qr_hash}`
+- **Scan QR** to open the app and download PDF
             """)
         ui_card_close()
 
