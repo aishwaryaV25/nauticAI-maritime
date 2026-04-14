@@ -4,6 +4,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, Resp
 import PipelineMap2D from "./PipelineMap2D";
 import MultiPipeline3D from "./MultiPipeline3D";
 import { getHealth, runDetection, runEnhance, downloadBatchPDF, downloadVideoPDF, runVideoDetection, sendPDFToWhatsApp, sendVideoPDFToWhatsApp, sendWhatsAppMessage } from "./api";
+import WeldInspector from './WeldInspector';
+import SonarAnalysis from './SonarAnalysis';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -17,8 +19,10 @@ const TABS = [
   { id: "deadline", icon: "⏰", label: "Deadlines" },
   { id: "dash", icon: "📊", label: "Dashboard" },
   { id: "memory", icon: "🧠", label: "Mission Memory" },
+  { id: "weld", icon: "🔬", label: "Weld Inspect" },
   { id: "comply", icon: "📋", label: "Compliance" },
   { id: "zero", icon: "🎯", label: "Zero-Shot" },
+  { id: "sonar", icon: "S", label: "Sonar Analysis" },
   { id: "road", icon: "🗺️", label: "Roadmap" },
 ];
 
@@ -236,6 +240,8 @@ export default function App() {
             {tab==="comply"&&<CompliancePage detResult={latestDetResult} vesselName={vesselName} inspector={inspector} />}
             {tab==="zero"&&<ZeroShotPage zeroShotClasses={zeroShotClasses} setZeroShotClasses={setZeroShotClasses} uploads={uploads} fileRef={fileRef} folderRef={folderRef} handleFiles={handleFiles} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} />}
             {tab==="road"&&<RoadmapPage />}
+            {tab==="sonar"&&<SonarAnalysis />}
+            {tab==="weld"&&<WeldInspector />}
           </motion.div>
         </AnimatePresence>
         <footer className="app-footer"><img src="/nauticai-logo.png" alt="" /><span className="footer-dot">·</span><a href="https://www.nauticai-ai.com" target="_blank" rel="noreferrer">www.nauticai-ai.com</a><span className="footer-dot">·</span><span>NautiCAI v1.0 — Deep-tech Venture · Singapore</span></footer>

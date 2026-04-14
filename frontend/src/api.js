@@ -4,8 +4,7 @@ const API = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8000",
 });
 
-export const getHealth = async () => (await API.get("/health")).data;
-
+export const getHealth = async () => (await API.get("/api/health")).data;
 export const runDetection = async (file, params) => {
   const fd = new FormData();
   fd.append("file", file);

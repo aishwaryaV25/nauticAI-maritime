@@ -30,6 +30,21 @@ runs/
 # ─── Datasets (large files tracked separately) ──────────────────
 data/
 merged_dataset_v2.zip
+Marine_PULSE/
+SubPipe/
+acoustic-leakage-dataset-GPLA-12-main/
+sonar_detect_dataset/
+sonar_defect_images/
+synthetic_data/
+/train/
+/test/
+
+# ─── Generated reports / large documents ───────────────────────
+*.pdf
+
+# ─── User uploads & runtime artifacts ───────────────────────────
+backend/uploads/
+frontend/src/result.json
 
 # ─── IDE / Editor ────────────────────────────────────────────────
 .vscode/
