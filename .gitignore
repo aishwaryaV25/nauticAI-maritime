@@ -30,21 +30,6 @@ runs/
 # ─── Datasets (large files tracked separately) ──────────────────
 data/
 merged_dataset_v2.zip
-Marine_PULSE/
-SubPipe/
-acoustic-leakage-dataset-GPLA-12-main/
-sonar_detect_dataset/
-sonar_defect_images/
-synthetic_data/
-/train/
-/test/
-
-# ─── Generated reports / large documents ───────────────────────
-*.pdf
-
-# ─── User uploads & runtime artifacts ───────────────────────────
-backend/uploads/
-frontend/src/result.json
 
 # ─── IDE / Editor ────────────────────────────────────────────────
 .vscode/
@@ -73,6 +58,24 @@ archive.zip
 *.zip
 .classpath
 .settings/
+
+# --- Reports and Output PDFs ---
+*.pdf
+
+# --- Untracked Data/Output Folders ---
+Marine_PULSE/
+SubPipe/
+acoustic-leakage-dataset-GPLA-12-main/
+sonar_detect_dataset/
+test/
+train/
+backend/uploads/
+
+# --- Editor/Backup/Temp Files ---
+*.backup
+
+# --- Frontend Output/Temp Files ---
+frontend/src/result.json
 
 # ─── OS Generated ───────────────────────────────────────────────
 .DS_Store

@@ -86,7 +86,7 @@ def build_batch_pdf(
         ["Total Images", str(len(batch_results)), "Total Detections", str(total_detections)],
         ["Critical", str(sev_counts["Critical"]), "High", str(sev_counts["High"]), "Medium", str(sev_counts["Medium"]), "Low", str(sev_counts["Low"])],
         ["Grades", ", ".join(grades), "Risk Scores", ", ".join(str(r) for r in risks)],
-    ], colWidths=[38*mm, 38*mm, 38*mm, 38*mm])
+    ], colWidths=[44*mm, 44*mm, 44*mm, 44*mm])
     summary_tbl.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), PANEL),
         ("BOX", (0, 0), (-1, -1), 0.5, BORDER),

@@ -117,7 +117,7 @@ def _detect_real(img, conf_thr, iou_thr):
     model, _ = load_yolo()
     if model is None:
         return []
-    results = model.predict(img, conf=conf_thr, iou=iou_thr, verbose=False)[0]
+    results = model.predict(img, conf=0.5, iou=0.4, agnostic_nms=True, verbose=False)[0]
     dets = []
     det_id = 0
     img_w = img.width if hasattr(img, "width") else img.shape[1]
@@ -190,7 +190,7 @@ def run_detection(img, conf_thr=0.25, iou_thr=0.45, mode="general"):
     return _detect_synthetic(img, conf_thr, pool)
 
 
-# ── Annotation ────────────────────────────────────────────────────────────
+# ── Annotation with Smart Label Placement ─────────────────────────────────
 
 SEV_COLOR = {
     "Critical": (0,   0,   220),
@@ -201,15 +201,17 @@ SEV_COLOR = {
 }
 
 
+def _rects_overlap(a, b, pad=4):
+    """Check if two rects (x1,y1,x2,y2) overlap with padding"""
+    return not (a[2] + pad <= b[0] or b[2] + pad <= a[0] or 
+                a[3] + pad <= b[1] or b[3] + pad <= a[1])
+
+
 def annotate_image(image, detections):
-    """
-    Draw bounding boxes + smart non-overlapping labels on image.
-    Accepts both PIL Image and numpy array.
-    """
+    """Annotate with collision-avoiding label placement"""
     if not detections:
         return image
 
-    # Convert PIL → numpy BGR if needed
     from PIL import Image as PILImage
     is_pil = isinstance(image, PILImage.Image)
     if is_pil:
@@ -218,106 +220,74 @@ def annotate_image(image, detections):
         img = image.copy()
 
     h, w = img.shape[:2]
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    placed_labels = []  # Track placed label rectangles
 
-    # ── Pass 1: draw all boxes ────────────────────────────────────────────
-    for d in detections:
+    for rank, d in enumerate(detections):
         bbox = d.get("bbox") or d.get("bounding_box") or {}
         x1 = int(bbox.get("xmin", d.get("x1", 0)))
         y1 = int(bbox.get("ymin", d.get("y1", 0)))
         x2 = int(bbox.get("xmax", d.get("x2", w)))
         y2 = int(bbox.get("ymax", d.get("y2", h)))
-
-        sev   = d.get("severity", "Unknown")
+        sev = d.get("severity", "Unknown")
         color = SEV_COLOR.get(sev, SEV_COLOR["Unknown"])
-        thickness = 3 if sev == "Critical" else 2
+        cls = d.get("cls") or d.get("class_name") or "unknown"
+        conf = float(d.get("conf", 0))
 
-        cv2.rectangle(img, (x1, y1), (x2, y2), color, thickness)
+        # Draw box
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
 
-        if sev == "Critical":
-            cl = 12
-            for cx, cy, dx, dy in [(x1,y1,1,1),(x2,y1,-1,1),(x1,y2,1,-1),(x2,y2,-1,-1)]:
-                cv2.line(img, (cx, cy), (cx + dx*cl, cy), color, 3)
-                cv2.line(img, (cx, cy), (cx, cy + dy*cl), color, 3)
+        # Prepare label
+        box_w = max(x2 - x1, 1)
+        label = f"[{str(rank+1).zfill(2)}] {cls} {conf*100:.0f}%"
+        fs = min(0.5, max(0.3, box_w / 200.0))
+        (lw, lh), _ = cv2.getTextSize(label, font, fs, 1)
 
-    # ── Pass 2: smart non-overlapping labels ──────────────────────────────
-    font       = cv2.FONT_HERSHEY_SIMPLEX
-    font_scale = 0.48
-    font_thick = 1
-    pad        = 5
-    label_h    = 18
-    occupied   = []
-
-    def overlaps(r1, r2):
-        return not (r1[2] < r2[0] or r1[0] > r2[2] or r1[3] < r2[1] or r1[1] > r2[3])
-
-    def find_label_pos(x1, y1, x2, y2, lw, lh):
+        # Try candidate positions: above, below, above-right, below-right, right, left
         candidates = [
-            (x1,      y1 - lh - 2, x1 + lw, y1 - 2),
-            (x2 - lw, y1 - lh - 2, x2,      y1 - 2),
-            (x1,      y2 + 2,       x1 + lw, y2 + lh + 2),
-            (x1,      y1 + 2,       x1 + lw, y1 + lh + 2),
+            (x1, y1 - lh - 8),           # above-left
+            (x2 - lw - 6, y1 - lh - 8),  # above-right
+            (x1, y2 + 4),                # below-left
+            (x2 - lw - 6, y2 + 4),       # below-right
+            (x2 + 4, y1),                # right-top
+            (x2 + 4, y2 - lh - 6),       # right-bottom
+            (x1 - lw - 10, y1),          # left-top
+            (x1 - lw - 10, y2 - lh - 6), # left-bottom
         ]
-        for rect in candidates:
-            rx1, ry1, rx2, ry2 = rect
-            if rx1 < 0:  rx1, rx2 = 0, lw
-            if rx2 > w:  rx1, rx2 = w - lw, w
-            if ry1 < 0:  ry1, ry2 = 0, lh
-            if ry2 > h:  ry1, ry2 = h - lh, h
-            rect = (rx1, ry1, rx2, ry2)
-            if not any(overlaps(rect, o) for o in occupied):
-                return rect
-        rx1, ry1 = max(0, x1), max(0, y1 - lh - 2)
-        return (rx1, ry1, rx1 + lw, ry1 + lh)
 
-    sev_order   = {"Critical":0,"High":1,"Medium":2,"Low":3,"Unknown":4}
-    sorted_dets = sorted(
-        detections,
-        key=lambda d: sev_order.get(d.get("severity","Unknown"), 4),
-        reverse=True,
-    )
+        chosen = None
+        for lx, ly in candidates:
+            # Check bounds
+            if lx < 0 or ly < 0 or lx + lw + 6 > w or ly + lh + 6 > h:
+                continue
+            
+            # Label rect with padding
+            label_rect = (lx, ly, lx + lw + 6, ly + lh + 6)
+            
+            # Check collision with existing labels
+            if not any(_rects_overlap(label_rect, pr) for pr in placed_labels):
+                chosen = (lx, ly)
+                placed_labels.append(label_rect)
+                break
 
-    for d in sorted_dets:
-        bbox  = d.get("bbox") or d.get("bounding_box") or {}
-        x1    = int(bbox.get("xmin", d.get("x1", 0)))
-        y1    = int(bbox.get("ymin", d.get("y1", 0)))
-        x2    = int(bbox.get("xmax", d.get("x2", w)))
-        y2    = int(bbox.get("ymax", d.get("y2", h)))
-        sev   = d.get("severity", "Unknown")
-        color = SEV_COLOR.get(sev, SEV_COLOR["Unknown"])
-        cls   = d.get("cls") or d.get("class_name") or "unknown"
-        conf  = d.get("conf", 0)
-        idx   = d.get("id", "")
+        # Fallback: clamp to image (collision allowed)
+        if chosen is None:
+            lx = min(max(0, x1), w - lw - 8)
+            ly = max(0, y1 - lh - 8) if y1 - lh - 8 >= 0 else y1 + lh + 4
+            chosen = (lx, ly)
 
-        label = f"[{str(idx).zfill(2)}] {cls} {conf*100:.0f}%"
+        lx, ly = chosen
+        
+        # Draw label background
+        bg_y1, bg_y2 = ly, ly + lh + 6
+        cv2.rectangle(img, (lx, bg_y1), (lx + lw + 6, bg_y2), color, -1)
+        cv2.putText(img, label, (lx + 3, ly + lh + 2), font, fs, (255, 255, 255), 1, cv2.LINE_AA)
 
-        (tw, _), _ = cv2.getTextSize(label, font, font_scale, font_thick)
-        lw = tw + pad * 2
-        lh = label_h
-
-        rx1, ry1, rx2, ry2 = find_label_pos(x1, y1, x2, y2, lw, lh)
-        occupied.append((rx1, ry1, rx2, ry2))
-
-        # semi-transparent background
-        overlay = img.copy()
-        cv2.rectangle(overlay, (rx1, ry1), (rx2, ry2), (0, 0, 0), -1)
-        cv2.addWeighted(overlay, 0.65, img, 0.35, 0, img)
-
-        # colored left accent + border
-        cv2.rectangle(img, (rx1, ry1), (rx1 + 3, ry2), color, -1)
-        cv2.rectangle(img, (rx1, ry1), (rx2, ry2), color, 1)
-
-        # white text
-        cv2.putText(img, label, (rx1 + pad + 2, ry1 + lh - 5),
-                    font, font_scale, (255, 255, 255), font_thick, cv2.LINE_AA)
-
-    # Convert back to PIL if input was PIL
     if is_pil:
-        img = PILImage.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-
+        return PILImage.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     return img
 
 
-# ── Heatmap ───────────────────────────────────────────────────────────────
 def build_heatmap(pil_img, dets):
     W, H = pil_img.size
     heat = np.zeros((H, W), dtype=np.float32)

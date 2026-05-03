@@ -49,7 +49,7 @@ app = FastAPI(
 # Register innovation routes (for weld inspection and more)
 
 from innovation_routes import router as innovation_router
-app.include_router(innovation_router)
+app.include_router(innovation_router, prefix="/api/innovation")
 
 # Include sonar_routes for /api/sonar endpoints
 from sonar_routes import router as sonar_router
@@ -273,6 +273,7 @@ async def detect(
             "annotated_b64": _pil_to_b64(annotated),
             "heatmap_b64": _pil_to_b64(heatmap),
             "enhanced_b64": _pil_to_b64(enhanced),
+            "original_b64": _pil_to_b64(pil_img),
         }
     except Exception as e:
         logger.error("ERROR in /api/detect: %s", e, exc_info=True)

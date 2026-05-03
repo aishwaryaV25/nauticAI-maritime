@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Form
 
-router = APIRouter(prefix="/api/innovation", tags=["Innovation"])
+router = APIRouter(tags=["Innovation"])
 
 @router.post("/weld-inspect")
 async def weld_inspect(
@@ -116,7 +116,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-router = APIRouter(prefix="/api/innovation", tags=["Innovation"])
 
 class ABSReportRequest(BaseModel):
     vessel_name: str = "MV Pacific Explorer"
