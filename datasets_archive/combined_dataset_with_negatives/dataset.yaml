@@ -1,0 +1,6 @@
+names:
+  0: pipeline
+nc: 1
+path: C:\Users\RAMNATH VENKAT\Documents\nauticai-underwater-anomaly\combined_dataset_with_negatives
+train: train/images
+val: val/images

@@ -18,6 +18,21 @@ const CLASS_ICONS = {
 
 function SeverityBadge({ severity }) {
   const s = SEVERITY_COLORS[severity] || SEVERITY_COLORS.info;
+
+  const handleLiveTracking = async () => {
+    if (!videoFile) { alert('Upload video first'); return; }
+    setIsLiveTracking(true);
+    const formData = new FormData();
+    formData.append('file', videoFile);
+    try {
+      const res = await fetch('http://localhost:8000/api/sonar/live-tracking', {method: 'POST', body: formData});
+      const data = await res.json();
+      setLiveTrackingResult(data);
+      alert('Live tracking complete!');
+    } catch (err) { setError('Failed'); }
+    finally { setIsLiveTracking(false); }
+  };
+
   return (
     <span style={{ padding:"3px 10px", borderRadius:12, fontSize:11, fontWeight:700, background:s.bg, color:s.text, textTransform:"uppercase", letterSpacing:"0.5px" }}>
       {severity}
@@ -26,6 +41,21 @@ function SeverityBadge({ severity }) {
 }
 
 function ImageWithDetections({ imageUrl, detections, width, height }) {
+
+  const handleLiveTracking = async () => {
+    if (!videoFile) { alert('Upload video first'); return; }
+    setIsLiveTracking(true);
+    const formData = new FormData();
+    formData.append('file', videoFile);
+    try {
+      const res = await fetch('http://localhost:8000/api/sonar/live-tracking', {method: 'POST', body: formData});
+      const data = await res.json();
+      setLiveTrackingResult(data);
+      alert('Live tracking complete!');
+    } catch (err) { setError('Failed'); }
+    finally { setIsLiveTracking(false); }
+  };
+
   return (
     <div style={{ position:"relative", width:"100%", marginBottom:20 }}>
       <img src={imageUrl} alt="Sonar scan" style={{ width:"100%", borderRadius:8, display:"block", background:"#000" }} />
@@ -35,7 +65,22 @@ function ImageWithDetections({ imageUrl, detections, width, height }) {
           const s = SEVERITY_COLORS[det.severity] || SEVERITY_COLORS.info;
           const px1 = x1 * width, py1 = y1 * height;
           const pw = (x2 - x1) * width, ph = (y2 - y1) * height;
-          return (
+        
+  const handleLiveTracking = async () => {
+    if (!videoFile) { alert('Upload video first'); return; }
+    setIsLiveTracking(true);
+    const formData = new FormData();
+    formData.append('file', videoFile);
+    try {
+      const res = await fetch('http://localhost:8000/api/sonar/live-tracking', {method: 'POST', body: formData});
+      const data = await res.json();
+      setLiveTrackingResult(data);
+      alert('Live tracking complete!');
+    } catch (err) { setError('Failed'); }
+    finally { setIsLiveTracking(false); }
+  };
+
+  return (
             <g key={det.id}>
               <rect x={px1} y={py1} width={pw} height={ph} fill="none" stroke={s.bg} strokeWidth={3} rx={4} />
               <rect x={px1} y={Math.max(py1 - 22, 0)} width={Math.max(pw, 140)} height={22} fill={s.bg} rx={4} opacity={0.9} />
@@ -61,6 +106,8 @@ export default function SonarAnalysis() {
   const [confThreshold, setConfThreshold] = useState(0.25);
   const [isDragging, setIsDragging] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [isLiveTracking, setIsLiveTracking] = useState(false);
+  const [liveTrackingResult, setLiveTrackingResult] = useState(null);
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
 
@@ -152,6 +199,21 @@ export default function SonarAnalysis() {
     } finally {
       setPdfLoading(false);
     }
+  };
+
+
+  const handleLiveTracking = async () => {
+    if (!videoFile) { alert('Upload video first'); return; }
+    setIsLiveTracking(true);
+    const formData = new FormData();
+    formData.append('file', videoFile);
+    try {
+      const res = await fetch('http://localhost:8000/api/sonar/live-tracking', {method: 'POST', body: formData});
+      const data = await res.json();
+      setLiveTrackingResult(data);
+      alert('Live tracking complete!');
+    } catch (err) { setError('Failed'); }
+    finally { setIsLiveTracking(false); }
   };
 
   return (

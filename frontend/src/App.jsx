@@ -5,6 +5,8 @@ import PipelineMap2D from "./PipelineMap2D";
 import MultiPipeline3D from "./MultiPipeline3D";
 import { getHealth, runDetection, runEnhance, downloadBatchPDF, downloadVideoPDF, runVideoDetection, sendPDFToWhatsApp, sendVideoPDFToWhatsApp, sendWhatsAppMessage } from "./api";
 import WeldInspector from './WeldInspector';
+import SonarAnalysis from './SonarAnalysis';
+import CombinedScan from './CombinedScan';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -16,11 +18,13 @@ const TABS = [
   { id: "pipeline", icon: "🔧", label: "Pipeline" },
   { id: "cable", icon: "⚡", label: "Sub-sea Cable" },
   { id: "deadline", icon: "⏰", label: "Deadlines" },
-  { id: "dash", icon: "📊", label: "Dashboard" },
+  
   { id: "memory", icon: "🧠", label: "Mission Memory" },
   { id: "weld", icon: "🔬", label: "Weld Inspect" },
   { id: "comply", icon: "📋", label: "Compliance" },
   { id: "zero", icon: "🎯", label: "Zero-Shot" },
+  { id: "sonar", icon: "S", label: "Sonar Analysis" },
+  { id: "combined", icon: "🚀", label: "Combined" },
   { id: "road", icon: "🗺️", label: "Roadmap" },
 ];
 
@@ -233,11 +237,13 @@ export default function App() {
             {tab==="pipeline"&&<PipelinePage {...imagePageProps} />}
             {tab==="cable"&&<CablePage {...imagePageProps} />}
             {tab==="deadline"&&<DeadlinePage detResult={latestDetResult} />}
-            {tab==="dash"&&<DashPage detResult={latestDetResult} videoResult={videoResult} sessionDetections={sessionDetections} reportsGenerated={reportsGenerated} />}
+            
             {tab==="memory"&&<MemoryPage missions={missions} />}
             {tab==="comply"&&<CompliancePage detResult={latestDetResult} vesselName={vesselName} inspector={inspector} />}
             {tab==="zero"&&<ZeroShotPage zeroShotClasses={zeroShotClasses} setZeroShotClasses={setZeroShotClasses} uploads={uploads} fileRef={fileRef} folderRef={folderRef} handleFiles={handleFiles} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} />}
             {tab==="road"&&<RoadmapPage />}
+            {tab==="sonar"&&<SonarAnalysis />}
+            {tab==="combined"&&<CombinedScan />}
             {tab==="weld"&&<WeldInspector />}
           </motion.div>
         </AnimatePresence>
@@ -307,7 +313,7 @@ function ComplianceModal({detResult,vesselName,inspector,onClose}) {
 function ScanPage(props) {
   const {uploads,selectedUpload,selectedIdx,setSelectedIdx,fileRef,folderRef,handleFiles,removeUpload,clearUploads,onDragOver,onDragLeave,onDrop,detectAll,enhanceAll,runBothAll,genPDF,sendPDFToWa,sendCompletionAlert,completionAlertSent,sendingWa,waMessage,exportCSV,loading,error,privacyCountdown,deletionCert,insp1Sev,setInsp1Sev,insp2Sev,setInsp2Sev,onOpenCompliance}=props;
   const det=uploads.find((x)=>x.detResult)?.detResult||null;
-  return (<><div className="section-header fade-up"><div className="section-crumb">Module · Anomaly Detection</div><h2 className="section-title">Underwater Anomaly Scan</h2><p className="section-desc">Upload underwater images for AI-powered anomaly detection, visibility enhancement, and PDF reports.</p><div className="section-rule" /></div><DropZone {...{fileRef,folderRef,uploads,handleFiles,onDragOver,onDragLeave,onDrop}} /><SpotlightFilmstrip {...{uploads,selectedIdx,setSelectedIdx,removeUpload,clearUploads}} /><ImageActionButtons uploads={uploads} loading={loading} detectAll={detectAll} genPDF={genPDF} sendPDFToWa={sendPDFToWa} sendCompletionAlert={sendCompletionAlert} completionAlertSent={completionAlertSent} sendingWa={sendingWa} exportCSV={exportCSV} latestDetForTab={det} onOpenCompliance={onOpenCompliance} scanLabel="Run Detection" showEnhance enhanceAll={enhanceAll} runBothAll={runBothAll} /><StatusBar error={error} waMessage={waMessage} /><PrivacyTimer countdown={privacyCountdown} cert={deletionCert} />{selectedUpload&&<DetectionResultsPanel detResult={selectedUpload.detResult} enhResult={selectedUpload.enhResult} preview={selectedUpload.preview} exportCSV={exportCSV} />}{det&&<DisagreementFlag insp1Sev={insp1Sev} setInsp1Sev={setInsp1Sev} insp2Sev={insp2Sev} setInsp2Sev={setInsp2Sev} />}</>);
+  return (<><div className="section-header fade-up"><div className="section-crumb">Module · Anomaly Detection</div><h2 className="section-title">Underwater Anomaly Scan</h2><p className="section-desc">Upload underwater images for AI-powered anomaly detection, visibility enhancement, and PDF reports.</p><div className="section-rule" /></div><DropZone {...{fileRef,folderRef,uploads,handleFiles,onDragOver,onDragLeave,onDrop}} /><SpotlightFilmstrip {...{uploads,selectedIdx,setSelectedIdx,removeUpload,clearUploads}} /><ImageActionButtons uploads={uploads} loading={loading} detectAll={detectAll} genPDF={genPDF} sendPDFToWa={sendPDFToWa} sendCompletionAlert={sendCompletionAlert} completionAlertSent={completionAlertSent} sendingWa={sendingWa} exportCSV={exportCSV} latestDetForTab={det} onOpenCompliance={onOpenCompliance} scanLabel="Run Detection" /><StatusBar error={error} waMessage={waMessage} /><PrivacyTimer countdown={privacyCountdown} cert={deletionCert} />{selectedUpload&&<DetectionResultsPanel detResult={selectedUpload.detResult} enhResult={selectedUpload.enhResult} preview={selectedUpload.preview} exportCSV={exportCSV} />}{det&&<DisagreementFlag insp1Sev={insp1Sev} setInsp1Sev={setInsp1Sev} insp2Sev={insp2Sev} setInsp2Sev={setInsp2Sev} />}</>);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
